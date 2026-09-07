@@ -2,11 +2,13 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 
+# Define the Master Passcode for the DP Coordinator
+COORDINATOR_PASSCODE = "cust4235"  # Change this to your desired secret password
+
 def init_and_get_connection():
-    conn = sqlite3.connect("dp_assessment.db")
+    conn = sqlite3.connect("dp_assessment_v2.db")
     cursor = conn.cursor()
     
-    # 1. Base table creation
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS evaluations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +27,6 @@ def init_and_get_connection():
         )
     """)
     
-    # 2. Add CLO columns if they do not exist in older database files
     new_cols = [
         ("s1_clo1", "INTEGER"), ("s1_clo2", "INTEGER"), ("s1_clo3", "INTEGER"), ("s1_clo4", "INTEGER"),
         ("s2_clo1", "INTEGER"), ("s2_clo2", "INTEGER"), ("s2_clo3", "INTEGER"), ("s2_clo4", "INTEGER")
@@ -64,7 +65,6 @@ CLO_STRUCTURE = {
     ]
 }
 
-# Group list increased to 25
 GROUPS = [f"Group-{i+1:02d}" for i in range(25)]
 
 st.set_page_config(page_title="DP Assessment Portal", layout="wide")
@@ -161,24 +161,33 @@ if role == "Supervisor Evaluation Form":
     else:
         st.dataframe(summary_df, use_container_width=True)
 
-# --- 2. DP COORDINATOR PORTAL ---
+# --- 2. DP COORDINATOR PORTAL (PASSCODE PROTECTED) ---
 elif role == "DP Coordinator Master Portal":
     st.title("🎓 DP Coordinator Master Dashboard")
     
-    conn = init_and_get_connection()
-    df = pd.read_sql_query("SELECT * FROM evaluations", conn)
-    conn.close()
+    passcode = st.sidebar.text_input("Enter Coordinator Passcode:", type="password")
+    
+    if passcode == COORDINATOR_PASSCODE:
+        st.success("Access Granted")
+        
+        conn = init_and_get_connection()
+        df = pd.read_sql_query("SELECT * FROM evaluations", conn)
+        conn.close()
 
-    if df.empty:
-        st.warning("No supervisor evaluations submitted yet.")
+        if df.empty:
+            st.warning("No supervisor evaluations submitted yet.")
+        else:
+            st.subheader("Master Assessment Records (All Groups & Supervisors)")
+            st.dataframe(df, use_container_width=True)
+
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Master Excel/CSV File",
+                data=csv_data,
+                file_name="DP_Master_Assessment_Data.csv",
+                mime="text/csv"
+            )
+    elif passcode != "":
+        st.error("Incorrect passcode. Access restricted to DP Coordinator only.")
     else:
-        st.subheader("Master Assessment Records (All Groups & Supervisors)")
-        st.dataframe(df, use_container_width=True)
-
-        csv_data = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Master Excel/CSV File",
-            data=csv_data,
-            file_name="DP_Master_Assessment_Data.csv",
-            mime="text/csv"
-        )
+        st.info("Please enter the Coordinator Passcode in the sidebar to view master records.")
