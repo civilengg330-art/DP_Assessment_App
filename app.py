@@ -2,8 +2,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 
-# Define the Master Passcode for the DP Coordinator
-COORDINATOR_PASSCODE = "cust4235"  # Change this to your desired secret password
+# Master Passcode for DP Coordinator
+COORDINATOR_PASSCODE = "cust123"
 
 def init_and_get_connection():
     conn = sqlite3.connect("dp_assessment_v2.db")
@@ -123,15 +123,16 @@ if role == "Supervisor Evaluation Form":
             f"* **{s1_name}:** CLO1: {s1_clo_scores['CLO 1']}/9 | CLO2: {s1_clo_scores['CLO 2']}/9 | CLO3: {s1_clo_scores['CLO 3']}/9 | CLO4: {s1_clo_scores['CLO 4']}/9 ➔ **Raw Total:** {s1_raw}/36 | **Weighted:** {s1_weighted}%\n"
             f"* **{s2_name}:** CLO1: {s2_clo_scores['CLO 1']}/9 | CLO2: {s2_clo_scores['CLO 2']}/9 | CLO3: {s2_clo_scores['CLO 3']}/9 | CLO4: {s2_clo_scores['CLO 4']}/9 ➔ **Raw Total:** {s2_raw}/36 | **Weighted:** {s2_weighted}%")
 
-    if st.button("Submit Evaluation", type="primary"):
+    if st.button("Submit / Update Evaluation", type="primary"):
         if not sup_name.strip():
             st.error("Please enter Supervisor Name before submitting.")
         else:
             conn = init_and_get_connection()
             cursor = conn.cursor()
             try:
+                # INSERT OR REPLACE automatically updates existing entries for the same group, part, and report
                 cursor.execute("""
-                    INSERT INTO evaluations 
+                    INSERT OR REPLACE INTO evaluations 
                     (supervisor_name, group_number, dp_part, report_number, 
                      s1_name, s1_clo1, s1_clo2, s1_clo3, s1_clo4, s1_raw, s1_weighted, 
                      s2_name, s2_clo1, s2_clo2, s2_clo3, s2_clo4, s2_raw, s2_weighted)
@@ -140,9 +141,9 @@ if role == "Supervisor Evaluation Form":
                       s1_name, s1_clo_scores['CLO 1'], s1_clo_scores['CLO 2'], s1_clo_scores['CLO 3'], s1_clo_scores['CLO 4'], s1_raw, s1_weighted,
                       s2_name, s2_clo_scores['CLO 1'], s2_clo_scores['CLO 2'], s2_clo_scores['CLO 3'], s2_clo_scores['CLO 4'], s2_raw, s2_weighted))
                 conn.commit()
-                st.success("Evaluation saved successfully!")
-            except sqlite3.IntegrityError:
-                st.error("Notice: An entry for this Group, DP Part, and Report Number already exists.")
+                st.success(f"Evaluation for {group_no} ({report_no}) saved/updated successfully!")
+            except Exception as e:
+                st.error(f"Error saving data: {e}")
             finally:
                 conn.close()
 
@@ -165,9 +166,21 @@ if role == "Supervisor Evaluation Form":
 elif role == "DP Coordinator Master Portal":
     st.title("🎓 DP Coordinator Master Dashboard")
     
-    passcode = st.sidebar.text_input("Enter Coordinator Passcode:", type="password")
+    with st.sidebar.form("login_form"):
+        passcode = st.text_input("Enter Coordinator Passcode:", type="password")
+        submit_passcode = st.form_submit_button("Access Master Portal")
     
-    if passcode == COORDINATOR_PASSCODE:
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if submit_passcode:
+        if passcode == COORDINATOR_PASSCODE:
+            st.session_state.authenticated = True
+        else:
+            st.session_state.authenticated = False
+            st.sidebar.error("Incorrect passcode.")
+
+    if st.session_state.authenticated:
         st.success("Access Granted")
         
         conn = init_and_get_connection()
@@ -187,7 +200,5 @@ elif role == "DP Coordinator Master Portal":
                 file_name="DP_Master_Assessment_Data.csv",
                 mime="text/csv"
             )
-    elif passcode != "":
-        st.error("Incorrect passcode. Access restricted to DP Coordinator only.")
     else:
-        st.info("Please enter the Coordinator Passcode in the sidebar to view master records.")
+        st.info("Please enter the Coordinator Passcode in the sidebar and click 'Access Master Portal'.")
