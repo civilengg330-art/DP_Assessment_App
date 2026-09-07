@@ -153,8 +153,9 @@ if role == "Supervisor Evaluation Form":
     if sup_name.strip():
         conn = init_and_get_connection()
         summary_df = pd.read_sql_query(
-            """SELECT dp_part, report_number, s1_name, s1_clo1, s1_clo2, s1_clo3, s1_clo4, s1_raw, s1_weighted, 
-                      s2_name, s2_clo1, s2_clo2, s2_clo3, s2_clo4, s2_raw, s2_weighted 
+            """SELECT dp_part, report_number, 
+                      s1_name, s1_clo1 AS "S1 CLO-1", s1_clo2 AS "S1 CLO-2", s1_clo3 AS "S1 CLO-3", s1_clo4 AS "S1 CLO-4", s1_raw AS "S1 Total (/36)", s1_weighted AS "S1 Weight (%)", 
+                      s2_name, s2_clo1 AS "S2 CLO-1", s2_clo2 AS "S2 CLO-2", s2_clo3 AS "S2 CLO-3", s2_clo4 AS "S2 CLO-4", s2_raw AS "S2 Total (/36)", s2_weighted AS "S2 Weight (%)" 
                FROM evaluations 
                WHERE group_number = ? AND supervisor_name = ?""", 
             conn, params=(group_no, sup_name.strip())
@@ -190,20 +191,44 @@ elif role == "DP Coordinator Master Portal":
         st.success("Access Granted")
         
         conn = init_and_get_connection()
-        df = pd.read_sql_query("SELECT * FROM evaluations", conn)
+        # Query selecting explicitly the requested totals and weighted scores
+        df = pd.read_sql_query(
+            """SELECT 
+                   supervisor_name AS "Supervisor", 
+                   group_number AS "Group", 
+                   dp_part AS "DP Part", 
+                   report_number AS "Report", 
+                   s1_name AS "Student 1", 
+                   s1_clo1 AS "S1 CLO-1 (/9)", 
+                   s1_clo2 AS "S1 CLO-2 (/9)", 
+                   s1_clo3 AS "S1 CLO-3 (/9)", 
+                   s1_clo4 AS "S1 CLO-4 (/9)", 
+                   s1_raw AS "S1 Total (/36)", 
+                   s1_weighted AS "S1 Weighted (%)", 
+                   s2_name AS "Student 2", 
+                   s2_clo1 AS "S2 CLO-1 (/9)", 
+                   s2_clo2 AS "S2 CLO-2 (/9)", 
+                   s2_clo3 AS "S2 CLO-3 (/9)", 
+                   s2_clo4 AS "S2 CLO-4 (/9)", 
+                   s2_raw AS "S2 Total (/36)", 
+                   s2_weighted AS "S2 Weighted (%)",
+                   submitted_at AS "Submitted At"
+               FROM evaluations""", 
+            conn
+        )
         conn.close()
 
         if df.empty:
             st.warning("No supervisor evaluations submitted yet.")
         else:
-            st.subheader("Master Assessment Records (All Groups & Supervisors)")
+            st.subheader("Master Assessment Records (Clean Totals View)")
             st.dataframe(df, use_container_width=True)
 
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download Master Excel/CSV File",
                 data=csv_data,
-                file_name="DP_Master_Assessment_Data.csv",
+                file_name="DP_Master_Assessment_Totals.csv",
                 mime="text/csv"
             )
     else:
