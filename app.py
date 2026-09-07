@@ -130,14 +130,13 @@ if role == "Supervisor Evaluation Form":
             conn = init_and_get_connection()
             cursor = conn.cursor()
             try:
-                # INSERT OR REPLACE automatically updates existing entries for the same group, part, and report
                 cursor.execute("""
                     INSERT OR REPLACE INTO evaluations 
                     (supervisor_name, group_number, dp_part, report_number, 
                      s1_name, s1_clo1, s1_clo2, s1_clo3, s1_clo4, s1_raw, s1_weighted, 
                      s2_name, s2_clo1, s2_clo2, s2_clo3, s2_clo4, s2_raw, s2_weighted)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (sup_name, group_no, dp_part, report_no, 
+                """, (sup_name.strip(), group_no, dp_part, report_no, 
                       s1_name, s1_clo_scores['CLO 1'], s1_clo_scores['CLO 2'], s1_clo_scores['CLO 3'], s1_clo_scores['CLO 4'], s1_raw, s1_weighted,
                       s2_name, s2_clo_scores['CLO 1'], s2_clo_scores['CLO 2'], s2_clo_scores['CLO 3'], s2_clo_scores['CLO 4'], s2_raw, s2_weighted))
                 conn.commit()
@@ -147,20 +146,27 @@ if role == "Supervisor Evaluation Form":
             finally:
                 conn.close()
 
-    # --- SUPERVISOR GROUP PROGRESS SUMMARY BELOW FORM ---
+    # --- SUPERVISOR GROUP PROGRESS SUMMARY BELOW FORM (FILTERED) ---
     st.markdown("---")
     st.subheader(f"📊 Progress Summary for {group_no}")
-    conn = init_and_get_connection()
-    summary_df = pd.read_sql_query(
-        "SELECT dp_part, report_number, s1_name, s1_clo1, s1_clo2, s1_clo3, s1_clo4, s1_raw, s1_weighted, s2_name, s2_clo1, s2_clo2, s2_clo3, s2_clo4, s2_raw, s2_weighted FROM evaluations WHERE group_number = ?", 
-        conn, params=(group_no,)
-    )
-    conn.close()
+    
+    if sup_name.strip():
+        conn = init_and_get_connection()
+        summary_df = pd.read_sql_query(
+            """SELECT dp_part, report_number, s1_name, s1_clo1, s1_clo2, s1_clo3, s1_clo4, s1_raw, s1_weighted, 
+                      s2_name, s2_clo1, s2_clo2, s2_clo3, s2_clo4, s2_raw, s2_weighted 
+               FROM evaluations 
+               WHERE group_number = ? AND supervisor_name = ?""", 
+            conn, params=(group_no, sup_name.strip())
+        )
+        conn.close()
 
-    if summary_df.empty:
-        st.caption("No reports submitted for this group yet.")
+        if summary_df.empty:
+            st.caption(f"No previous reports submitted by {sup_name.strip()} for {group_no} yet.")
+        else:
+            st.dataframe(summary_df, use_container_width=True)
     else:
-        st.dataframe(summary_df, use_container_width=True)
+        st.caption("Please enter your Supervisor Name above to view your previous submissions for this group.")
 
 # --- 2. DP COORDINATOR PORTAL (PASSCODE PROTECTED) ---
 elif role == "DP Coordinator Master Portal":
